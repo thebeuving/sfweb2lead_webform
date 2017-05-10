@@ -220,7 +220,7 @@ class SalesforceWebToLeadPostWebformHandler extends RemotePostWebformHandler {
     } // Loop thru data fields.
 
     // Allow modification of data by other modules.
-    \Drupal::moduleHandler()->alter('sfweb2lead_webform_d8_post_data', $salesforce_data, $this->webform, $webform_submission);
+    \Drupal::moduleHandler()->alter('sfweb2lead_webform_d8_posted_data', $salesforce_data, $this->webform, $webform_submission);
 
     return $salesforce_data;
 
