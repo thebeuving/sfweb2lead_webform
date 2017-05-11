@@ -32,7 +32,7 @@ class SalesforceWebToLeadPostWebformHandler extends RemotePostWebformHandler {
       'type' => 'x-www-form-urlencoded',
       'salesforce_url' => '',
       'salesforce_oid' => '',
-      'salesforce_mapping' => array(),
+      'salesforce_mapping' => [],
       'excluded_data' => $excluded_data,
       'custom_data' => '',
       'debug' => FALSE,
@@ -207,9 +207,9 @@ class SalesforceWebToLeadPostWebformHandler extends RemotePostWebformHandler {
     // Get Salesforce field mappings.
     $salesforce_mapping = $this->configuration['salesforce_mapping'];
 
-    $salesforce_data = array(
+    $salesforce_data = [
       'oid' => $this->configuration['salesforce_oid'],
-    );
+    ];
     foreach ($data as $key => $value) {
       if (!empty($salesforce_mapping[$key])) {
         $salesforce_data[$salesforce_mapping[$key]] = $value;
