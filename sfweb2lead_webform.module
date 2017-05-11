@@ -8,7 +8,7 @@
 /**
  * Implements hook_theme().
  */
-function sfweb2lead_webform_d8_theme() {
+function sfweb2lead_webform_theme() {
   $info = [
     'webform_handler_sfweb2lead_post_summary' => [
       'variables' => ['settings' => NULL, 'handler' => []],
