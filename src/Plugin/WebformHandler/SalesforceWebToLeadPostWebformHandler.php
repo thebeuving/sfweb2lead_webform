@@ -3,9 +3,11 @@
 namespace Drupal\sfweb2lead_webform\Plugin\WebformHandler;
 
 use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\Serialization\Yaml;
+use Drupal\webform\Element\WebformOtherBase;
+use Drupal\webform\Plugin\WebformHandler\RemotePostWebformHandler;
 use Drupal\webform\WebformSubmissionInterface;
 use GuzzleHttp\Exception\RequestException;
-use Drupal\webform\Plugin\WebformHandler\RemotePostWebformHandler;
 
 /**
  * Webform submission remote post handler.
@@ -22,18 +24,25 @@ use Drupal\webform\Plugin\WebformHandler\RemotePostWebformHandler;
 class SalesforceWebToLeadPostWebformHandler extends RemotePostWebformHandler {
 
   /**
+   * Typical salesforce campaign fields
+   * Used for available list of campaign fields.
+   *
+   * @see https://help.salesforce.com/articleView?id=setting_up_web-to-lead.htm&type=0
+   * @var array
+   */
+  protected $salesforceCampaignFields = ['description', 'email', 'first_name', 'last_name', 'lead_source', 'phone'];
+
+  /**
    * {@inheritdoc}
    */
   public function defaultConfiguration() {
-    $field_names = array_keys(\Drupal::service('entity_field.manager')
-      ->getBaseFieldDefinitions('webform_submission'));
-    $excluded_data = array_combine($field_names, $field_names);
+    $field_names = array_keys(\Drupal::service('entity_field.manager')->getBaseFieldDefinitions('webform_submission'));
     return [
       'type' => 'x-www-form-urlencoded',
       'salesforce_url' => '',
       'salesforce_oid' => '',
       'salesforce_mapping' => [],
-      'excluded_data' => $excluded_data,
+      'excluded_data' => [],
       'custom_data' => '',
       'debug' => FALSE,
     ];
@@ -44,7 +53,6 @@ class SalesforceWebToLeadPostWebformHandler extends RemotePostWebformHandler {
    */
   public function buildConfigurationForm(array $form, FormStateInterface $form_state) {
     $webform = $this->getWebform();
-
     $form['salesforce_url'] = [
       '#type' => 'url',
       '#title' => $this->t('Salesforce URL'),
@@ -61,39 +69,33 @@ class SalesforceWebToLeadPostWebformHandler extends RemotePostWebformHandler {
       '#default_value' => $this->configuration['salesforce_oid'],
     ];
 
-    $form['submission_data'] = [
-      '#type' => 'details',
-      '#title' => $this->t('Submission data'),
-    ];
-    $form['submission_data']['excluded_data'] = [
-      '#type' => 'webform_excluded_columns',
-      '#title' => $this->t('Posted data'),
-      '#title_display' => 'invisible',
-      '#webform' => $webform,
-      '#required' => TRUE,
-      '#parents' => ['settings', 'excluded_data'],
-      '#default_value' => $this->configuration['excluded_data'],
-    ];
-
-    $form['salesforce_mapping'] = [
-      '#type' => 'details',
-      '#title' => $this->t('Salesforce field mapping'),
-      '#description' => $this->t('Specify alternate field names to be sent to Salesforce (e.g. <em>00M1a000010Id6x</em>). If not set, the webform key will be used.'),
-    ];
+    $map_sources = [];
     $elements = $this->webform->getElementsDecoded();
     foreach ($elements as $key => $element) {
       if (strpos($key, '#') === 0 || empty($element['#title'])) {
         continue;
       }
-      $form['salesforce_mapping'][$key] = [
-        '#type' => 'textfield',
-        '#title' => $element['#title'] . ' (' . $key . ')',
-        '#default_value' => (!empty($this->configuration['salesforce_mapping'][$key])) ? $this->configuration['salesforce_mapping'][$key] : NULL,
-        '#attributes' => [
-          'placeholder' => $key,
-        ],
-      ];
+      $map_sources[$key] = $element['#title'];
     }
+    /** @var \Drupal\webform\WebformSubmissionStorageInterface $submission_storage */
+    $submission_storage = \Drupal::entityTypeManager()->getStorage('webform_submission');
+    $field_definitions = $submission_storage->getFieldDefinitions();
+    $field_definitions = $submission_storage->checkFieldDefinitionAccess($webform, $field_definitions);
+    foreach ($field_definitions as $key => $field_definition) {
+      $map_sources[$key] = $field_definition['title'] . ' (type : ' . $field_definition['type'] . ')';
+    }
+
+    $form['salesforce_mapping'] = [
+      '#type' => 'webform_mapping',
+      '#title' => $this->t('Webform to Salesforce mapping'),
+      '#description' => $this->t('Only Maps with specified "Salesforce Web-to-Lead Campaign Field" will be submitted to salesforce.'),
+      '#source__title' => t('Webform Submitted Data'),
+      '#destination__title' => t('Salesforce Web-to-Lead Campaign Field'),
+      '#source' => $map_sources,
+      '#destination__type' => 'webform_select_other',
+      '#destination' => array_combine($this->salesforceCampaignFields, $this->salesforceCampaignFields),
+      '#default_value' => $this->configuration['salesforce_mapping'],
+    ];
 
     $form['custom_data'] = [
       '#type' => 'details',
@@ -127,8 +129,8 @@ class SalesforceWebToLeadPostWebformHandler extends RemotePostWebformHandler {
       '#return_value' => TRUE,
       '#default_value' => $this->configuration['debug'],
     ];
-
     return $form;
+
   }
 
   /**
@@ -200,28 +202,44 @@ class SalesforceWebToLeadPostWebformHandler extends RemotePostWebformHandler {
    *   A webform submission converted to an associative array.
    */
   protected function getPostData($operation, WebformSubmissionInterface $webform_submission) {
-
-    // Get data from parent.
-    $data = parent::getPostData($operation, $webform_submission);
-
-    // Get Salesforce field mappings.
-    $salesforce_mapping = $this->configuration['salesforce_mapping'];
-
     $salesforce_data = [
       'oid' => $this->configuration['salesforce_oid'],
     ];
+    $data = $webform_submission->toArray(TRUE);
+    $data = $data['data'] + $data;
+    unset($data['data']);
+    // Get data from parent.
+    // Well the idea is that only mapped data and custom data are passed to salesforce.
+    // Also curation is best handled only at salesforce_mapping.
+    // Unable to make use of parent getPostData logic.
+    // $data = parent::getPostData($operation, $webform_submission); .
+    // Get Salesforce field mappings.
+    $salesforce_mapping = $this->configuration['salesforce_mapping'];
     foreach ($data as $key => $value) {
-      if (!empty($salesforce_mapping[$key])) {
-        $salesforce_data[$salesforce_mapping[$key]] = $value;
+      $salesforce_campaign_field = '';
+      $select_or_other_values = $salesforce_mapping[$key];
+      if (!empty($select_or_other_values['select']) && $select_or_other_values['select'] != WebformOtherBase::OTHER_OPTION) {
+        $salesforce_campaign_field = $select_or_other_values['select'];
       }
-      else {
-        $salesforce_data[$key] = $value;
+      elseif (!empty($select_or_other_values['select']) && $select_or_other_values['select'] == WebformOtherBase::OTHER_OPTION && !empty($select_or_other_values['other'])) {
+        $salesforce_campaign_field = $select_or_other_values['other'];
       }
-    } // Loop thru data fields.
-
+      if (!empty($value) && !empty($salesforce_campaign_field)) {
+        $salesforce_data[$salesforce_campaign_field] = $value;
+      }
+    }
+    // Append custom data.
+    if (!empty($this->configuration['custom_data'])) {
+      $salesforce_data = Yaml::decode($this->configuration['custom_data']) + $salesforce_data;
+    }
+    // Append operation data.
+    if (!empty($this->configuration[$operation . '_custom_data'])) {
+      $salesforce_data = Yaml::decode($this->configuration[$operation . '_custom_data']) + $salesforce_data;
+    }
+    // Replace tokens.
+    $salesforce_data = $this->tokenManager->replace($salesforce_data, $webform_submission);
     // Allow modification of data by other modules.
     \Drupal::moduleHandler()->alter('sfweb2lead_webform_posted_data', $salesforce_data, $this->webform, $webform_submission);
-
     return $salesforce_data;
 
   }
