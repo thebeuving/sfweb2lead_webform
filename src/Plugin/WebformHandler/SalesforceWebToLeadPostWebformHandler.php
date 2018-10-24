@@ -3,11 +3,8 @@
 namespace Drupal\sfweb2lead_webform\Plugin\WebformHandler;
 
 use Drupal\Core\Form\FormStateInterface;
-use Drupal\Core\Serialization\Yaml;
-use Drupal\webform\Element\WebformOtherBase;
 use Drupal\webform\Plugin\WebformHandler\RemotePostWebformHandler;
 use Drupal\webform\WebformSubmissionInterface;
-use GuzzleHttp\Exception\RequestException;
 
 /**
  * Webform submission remote post handler.
@@ -17,8 +14,8 @@ use GuzzleHttp\Exception\RequestException;
  *   label = @Translation("Salesforce Web-to-Lead post"),
  *   category = @Translation("External"),
  *   description = @Translation("Posts webform submissions to a Salesforce.com URL."),
- *   cardinality = \Drupal\webform\WebformHandlerInterface::CARDINALITY_UNLIMITED,
- *   results = \Drupal\webform\WebformHandlerInterface::RESULTS_PROCESSED,
+ *   cardinality = \Drupal\webform\Plugin\WebformHandlerInterface::CARDINALITY_UNLIMITED,
+ *   results = \Drupal\webform\Plugin\WebformHandlerInterface::RESULTS_PROCESSED,
  * )
  */
 class SalesforceWebToLeadPostWebformHandler extends RemotePostWebformHandler {
@@ -134,114 +131,35 @@ class SalesforceWebToLeadPostWebformHandler extends RemotePostWebformHandler {
   }
 
   /**
-   * Execute a remote post.
-   *
-   * @param string $operation
-   *   The type of webform submission operation to be posted. Can be 'insert',
-   *   'update', or 'delete'.
-   * @param \Drupal\webform\WebformSubmissionInterface $webform_submission
-   *   The webform submission to be posted.
+   * {@inheritdoc}
    */
-  protected function remotePost($operation, WebformSubmissionInterface $webform_submission) {
-
-    if ($operation != 'insert') {
-      // Not an insert, don't bother.
-      return;
+  protected function remotePost($state, WebformSubmissionInterface $webform_submission) {
+    if (!empty($this->configuration['salesforce_url']) && $state === WebformSubmissionInterface::STATE_COMPLETED) {
+      $this->configuration[$state . '_url'] = $this->configuration['salesforce_url'];
     }
-
-    $request_url = $this->configuration['salesforce_url'];
-    if (empty($request_url)) {
-      return;
-    }
-
-    $request_type = 'x-www-form-urlencoded';
-    $request_post_data = $this->getPostData($operation, $webform_submission);
-
-    try {
-      $response = $this->httpClient->post($request_url, ['form_params' => $request_post_data]);
-    }
-    catch (RequestException $request_exception) {
-      $message = $request_exception->getMessage();
-      $response = $request_exception->getResponse();
-
-      // Encode HTML entities to prevent broken markup from breaking the page.
-      $message = nl2br(htmlentities($message));
-
-      // If debugging is enabled, display the error message on screen.
-      $this->debug($message, $operation, $request_url, $request_type, $request_post_data, $response, 'error');
-
-      // Log error message.
-      $context = [
-        '@form' => $this->getWebform()->label(),
-        '@operation' => $operation,
-        '@type' => $request_type,
-        '@url' => $request_url,
-        '@message' => $message,
-        'link' => $this->getWebform()
-          ->toLink(t('Edit'), 'handlers-form')
-          ->toString(),
-      ];
-      $this->logger->error('@form webform remote @type post (@operation) to @url failed. @message', $context);
-      return;
-    }
-
-    // If debugging is enabled, display the request and response.
-    $this->debug(t('Remote post successful!'), $operation, $request_url, $request_type, $request_post_data, $response, 'warning');
+    return parent::remotePost($state, $webform_submission);
   }
 
   /**
-   * Get a webform submission's post data.
-   *
-   * @param string $operation
-   *   The type of webform submission operation to be posted. Can be 'insert',
-   *   'update', or 'delete'.
-   * @param \Drupal\webform\WebformSubmissionInterface $webform_submission
-   *   The webform submission to be posted.
-   *
-   * @return array
-   *   A webform submission converted to an associative array.
+   * {@inheritdoc}
    */
-  protected function getPostData($operation, WebformSubmissionInterface $webform_submission) {
+  protected function getRequestData($state, WebformSubmissionInterface $webform_submission) {
+    $data = parent::getRequestData($state, $webform_submission);
     $salesforce_data = [
       'oid' => $this->configuration['salesforce_oid'],
     ];
-    $data = $webform_submission->toArray(TRUE);
-    $data = $data['data'] + $data;
-    unset($data['data']);
-    // Get data from parent.
-    // Well the idea is that only mapped data and custom data are passed to salesforce.
-    // Also curation is best handled only at salesforce_mapping.
-    // Unable to make use of parent getPostData logic.
-    // $data = parent::getPostData($operation, $webform_submission); .
+
     // Get Salesforce field mappings.
     $salesforce_mapping = $this->configuration['salesforce_mapping'];
     foreach ($data as $key => $value) {
-      $salesforce_campaign_field = '';
-      $select_or_other_values = $salesforce_mapping[$key];
-      if (!empty($select_or_other_values['select']) && $select_or_other_values['select'] != WebformOtherBase::OTHER_OPTION) {
-        $salesforce_campaign_field = $select_or_other_values['select'];
-      }
-      elseif (!empty($select_or_other_values['select']) && $select_or_other_values['select'] == WebformOtherBase::OTHER_OPTION && !empty($select_or_other_values['other'])) {
-        $salesforce_campaign_field = $select_or_other_values['other'];
-      }
-      if (!empty($value) && !empty($salesforce_campaign_field)) {
-        $salesforce_data[$salesforce_campaign_field] = $value;
+      if (array_key_exists($key, $salesforce_mapping)) {
+        $salesforce_data[$salesforce_mapping[$key]] = $value;
       }
     }
-    // Append custom data.
-    if (!empty($this->configuration['custom_data'])) {
-      $salesforce_data = Yaml::decode($this->configuration['custom_data']) + $salesforce_data;
-    }
-    // Append operation data.
-    if (!empty($this->configuration[$operation . '_custom_data'])) {
-      $salesforce_data = Yaml::decode($this->configuration[$operation . '_custom_data']) + $salesforce_data;
-    }
-    // Replace tokens.
-    $salesforce_data = $this->tokenManager->replace($salesforce_data, $webform_submission);
+
     // Allow modification of data by other modules.
     \Drupal::moduleHandler()->alter('sfweb2lead_webform_posted_data', $salesforce_data, $this->webform, $webform_submission);
     return $salesforce_data;
-
   }
 
 }
