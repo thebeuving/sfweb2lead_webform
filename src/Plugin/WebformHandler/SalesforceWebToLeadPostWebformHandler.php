@@ -67,7 +67,7 @@ class SalesforceWebToLeadPostWebformHandler extends RemotePostWebformHandler {
     ];
 
     $map_sources = [];
-    $elements = $this->webform->getElementsDecoded();
+    $elements = $this->webform->getElementsDecodedAndFlattened();
     foreach ($elements as $key => $element) {
       if (strpos($key, '#') === 0 || empty($element['#title'])) {
         continue;
