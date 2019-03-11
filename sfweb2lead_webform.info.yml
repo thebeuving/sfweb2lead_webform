@@ -4,7 +4,7 @@ description: 'Integrates Salesforce Web-to-Lead Form feature with various webfor
 package: Webform
 # core: 8.x
 dependencies:
-  - webform
+  - webform:webform
 
 core: '8.x'
 project: 'sfweb2lead_webform'
