@@ -3,6 +3,7 @@
 namespace Drupal\sfweb2lead_webform\Plugin\WebformHandler;
 
 use Drupal\Core\Form\FormStateInterface;
+use Drupal\sfweb2lead_webform\Event\Sfweb2leadWebformEvent;
 use Drupal\webform\Plugin\WebformHandler\RemotePostWebformHandler;
 use Drupal\webform\WebformSubmissionInterface;
 
@@ -157,9 +158,14 @@ class SalesforceWebToLeadPostWebformHandler extends RemotePostWebformHandler {
       }
     }
 
+    /** @var \Symfony\Component\EventDispatcher\EventDispatcherInterface $dispatcher */
+    $dispatcher = \Drupal::service('event_dispatcher');
+
     // Allow modification of data by other modules.
-    \Drupal::moduleHandler()->alter('sfweb2lead_webform_posted_data', $salesforce_data, $this->webform, $webform_submission);
-    return $salesforce_data;
+    $event = new Sfweb2leadWebformEvent($salesforce_data, $this, $webform_submission);
+    $dispatcher->dispatch(Sfweb2leadWebformEvent::SUBMIT, $event);
+
+    return $event->getData();
   }
 
 }
