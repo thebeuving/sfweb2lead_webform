@@ -23,6 +23,13 @@ use Drupal\webform\WebformSubmissionInterface;
 class SalesforceWebToLeadPostWebformHandler extends RemotePostWebformHandler {
 
   /**
+   * Event dispatcher service.
+   *
+   * @var \Symfony\Component\EventDispatcher\EventDispatcherInterface
+   */
+  protected $eventDispatcher;
+
+  /**
    * Typical salesforce campaign fields
    * Used for available list of campaign fields.
    *
@@ -35,7 +42,6 @@ class SalesforceWebToLeadPostWebformHandler extends RemotePostWebformHandler {
    * {@inheritdoc}
    */
   public function defaultConfiguration() {
-    $field_names = array_keys(\Drupal::service('entity_field.manager')->getBaseFieldDefinitions('webform_submission'));
     return [
       'type' => 'x-www-form-urlencoded',
       'salesforce_url' => '',
@@ -76,10 +82,8 @@ class SalesforceWebToLeadPostWebformHandler extends RemotePostWebformHandler {
       }
       $map_sources[$key] = $element['#title'];
     }
-    /** @var \Drupal\webform\WebformSubmissionStorageInterface $submission_storage */
-    $submission_storage = \Drupal::entityTypeManager()->getStorage('webform_submission');
-    $field_definitions = $submission_storage->getFieldDefinitions();
-    $field_definitions = $submission_storage->checkFieldDefinitionAccess($webform, $field_definitions);
+    $field_definitions = $this->submissionStorage->getFieldDefinitions();
+    $field_definitions = $this->submissionStorage->checkFieldDefinitionAccess($webform, $field_definitions);
     foreach ($field_definitions as $key => $field_definition) {
       $map_sources[$key] = $field_definition['title'] . ' (type : ' . $field_definition['type'] . ')';
     }
@@ -159,9 +163,6 @@ class SalesforceWebToLeadPostWebformHandler extends RemotePostWebformHandler {
       }
     }
 
-    /** @var \Symfony\Component\EventDispatcher\EventDispatcherInterface $dispatcher */
-    $dispatcher = \Drupal::service('event_dispatcher');
-
     // Add custom data.
     $custom_data = Yaml::decode($this->configuration['custom_data']);
     foreach ($custom_data as $key => $value) {
@@ -172,9 +173,25 @@ class SalesforceWebToLeadPostWebformHandler extends RemotePostWebformHandler {
 
     // Allow modification of data by other modules.
     $event = new Sfweb2leadWebformEvent($salesforce_data, $this, $webform_submission);
-    $dispatcher->dispatch(Sfweb2leadWebformEvent::SUBMIT, $event);
+    $this->eventDispatcher()->dispatch(Sfweb2leadWebformEvent::SUBMIT, $event);
 
     return $event->getData();
+  }
+
+  /**
+   * Avoid using proper DIC here and rely on the parent class constructor.
+   *
+   * The parent class constructor relies on 9 injected services, thus is very
+   * cumbersome to override and maintain. By using this quick and dirty helper,
+   * we can more simply wrap the event dispatcher service.
+   *
+   * @return \Symfony\Component\EventDispatcher\EventDispatcherInterface
+   */
+  protected function eventDispatcher() {
+    if (!$this->eventDispatcher) {
+      $this->eventDispatcher = \Drupal::service('event_dispatcher');
+    }
+    return $this->eventDispatcher;
   }
 
 }
