@@ -2,6 +2,7 @@
 
 namespace Drupal\sfweb2lead_webform\Plugin\WebformHandler;
 
+use Drupal\Component\Serialization\Yaml;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\sfweb2lead_webform\Event\Sfweb2leadWebformEvent;
 use Drupal\webform\Plugin\WebformHandler\RemotePostWebformHandler;
@@ -160,6 +161,14 @@ class SalesforceWebToLeadPostWebformHandler extends RemotePostWebformHandler {
 
     /** @var \Symfony\Component\EventDispatcher\EventDispatcherInterface $dispatcher */
     $dispatcher = \Drupal::service('event_dispatcher');
+
+    // Add custom data.
+    $custom_data = Yaml::decode($this->configuration['custom_data']);
+    foreach ($custom_data as $key => $value) {
+      if (array_key_exists($key, $data)) {
+        $salesforce_data[$key] = $data[$key];
+      }
+    }
 
     // Allow modification of data by other modules.
     $event = new Sfweb2leadWebformEvent($salesforce_data, $this, $webform_submission);
