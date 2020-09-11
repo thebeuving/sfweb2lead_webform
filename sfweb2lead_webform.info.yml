@@ -6,3 +6,4 @@ dependencies:
   - webform:webform (>=8.x-5.x)
 
 core: '8.x'
+core_version_requirement: ^8 || ^9
