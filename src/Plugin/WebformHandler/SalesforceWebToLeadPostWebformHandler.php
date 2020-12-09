@@ -165,9 +165,11 @@ class SalesforceWebToLeadPostWebformHandler extends RemotePostWebformHandler {
 
     // Add custom data.
     $custom_data = Yaml::decode($this->configuration['custom_data']);
-    foreach ($custom_data as $key => $value) {
-      if (array_key_exists($key, $data)) {
-        $salesforce_data[$key] = $data[$key];
+    if (!empty($custom_data)) {
+      foreach ($custom_data as $key => $value) {
+        if (array_key_exists($key, $data)) {
+          $salesforce_data[$key] = $data[$key];
+        }
       }
     }
 
