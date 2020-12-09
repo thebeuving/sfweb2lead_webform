@@ -75,9 +75,14 @@ class SalesforceWebToLeadPostWebformHandler extends RemotePostWebformHandler {
     ];
 
     $map_sources = [];
-    $elements = $this->webform->getElementsDecodedAndFlattened();
+    $elements = $this->webform->getElementsInitializedAndFlattened();
     foreach ($elements as $key => $element) {
-      if (strpos($key, '#') === 0 || empty($element['#title'])) {
+      if (strpos($key, '#') === 0 || empty($element['#title']) || !empty($element['#webform_composite_elements'])) {
+        if (!empty($element['#webform_composite_elements'])) {
+          foreach ($element['#webform_composite_elements'] as $subkey => $subelement) {
+            $map_sources[$key . '_' . $subkey] = $element['#title'] . ' - ' . $subelement['#title'];
+          }
+        }
         continue;
       }
       $map_sources[$key] = $element['#title'];
@@ -158,6 +163,15 @@ class SalesforceWebToLeadPostWebformHandler extends RemotePostWebformHandler {
     // Get Salesforce field mappings.
     $salesforce_mapping = $this->configuration['salesforce_mapping'];
     foreach ($data as $key => $value) {
+      if (is_array($value)) {
+        foreach ($value as $sub_key => $sub_value) {
+          $new_key = $key . '_' . $sub_key;
+          if (array_key_exists($new_key, $salesforce_mapping)) {
+            $salesforce_data[$salesforce_mapping[$new_key]] = $sub_value;
+          }
+        }
+        continue;
+      }
       if (array_key_exists($key, $salesforce_mapping)) {
         $salesforce_data[$salesforce_mapping[$key]] = $value;
       }
