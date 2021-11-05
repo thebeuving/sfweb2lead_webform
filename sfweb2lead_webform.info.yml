@@ -1,6 +1,6 @@
 type: module
 name: Salesforce Web-to-Lead Webform Data Integration
-+description: 'Integrates Salesforce Web-to-Lead Form feature with various webforms.'
+description: 'Integrates Salesforce Web-to-Lead Form feature with various webforms.'
 package: Webform
 dependencies:
   - webform:webform
