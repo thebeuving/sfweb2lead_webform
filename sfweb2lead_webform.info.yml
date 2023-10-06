@@ -5,5 +5,4 @@ package: Webform
 dependencies:
   - webform:webform
 
-core: '10.x'
 core_version_requirement: ^9 || ^10
