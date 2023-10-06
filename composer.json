@@ -1,0 +1,18 @@
+{
+    "name": "thebeuving/sfweb2lead_webform",
+    "description": "fork of sfweb2lead_webform to provide D10 support",
+    "type": "drupal-module",
+    "license": "GPL-2.0-or-later",
+    "authors": [
+        {
+            "name": "David Beuving (thebeuving)",
+            "role": "Maintainer"
+        }
+    ],
+    "homepage": "https://github.com/thebeuving/sfweb2lead_webform",
+    "support": {
+        "issues": "https://github.com/thebeuving/sfweb2lead_webform/issues",
+        "source": "https://github.com/thebeuving/sfweb2lead_webform"
+    }
+}
+
