@@ -18,7 +18,7 @@ class BackwardsCompatibilitySubscriber implements EventSubscriberInterface {
   }
 
   public function doHookAlter(Sfweb2leadWebformEvent $event) {
-    $implements = \Drupal::moduleHandler()->getImplementations('sfweb2lead_webform_posted_data_alter');
+    $implements = \Drupal::moduleHandler()->hasImplementations('sfweb2lead_webform_posted_data_alter');
 
     if (empty($implements)) {
       return;

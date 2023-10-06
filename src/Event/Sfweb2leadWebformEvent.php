@@ -4,7 +4,7 @@ namespace Drupal\sfweb2lead_webform\Event;
 
 use Drupal\sfweb2lead_webform\Plugin\WebformHandler\SalesforceWebToLeadPostWebformHandler;
 use Drupal\webform\WebformSubmissionInterface;
-use Symfony\Component\EventDispatcher\Event;
+use Symfony\Contracts\EventDispatcher\Event;
 
 class Sfweb2leadWebformEvent extends Event {
 

@@ -189,7 +189,7 @@ class SalesforceWebToLeadPostWebformHandler extends RemotePostWebformHandler {
 
     // Allow modification of data by other modules.
     $event = new Sfweb2leadWebformEvent($salesforce_data, $this, $webform_submission);
-    $this->eventDispatcher()->dispatch(Sfweb2leadWebformEvent::SUBMIT, $event);
+    $this->eventDispatcher()->dispatch($event, Sfweb2leadWebformEvent::SUBMIT);
 
     return $event->getData();
   }
